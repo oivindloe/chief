@@ -36,7 +36,9 @@ dmypy.json
 # Project outputs
 .output/
 .static/
-.venv/
+# No trailing slash: `.venv/` matches only directories. Linked worktrees
+# symlink .venv at the main checkout, and that symlink must be ignored too.
+.venv
 .pyenv/
 
 # Leftover logo_images staging dirs if a prepare process is killed mid-run

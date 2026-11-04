@@ -61,6 +61,9 @@ jobs:
           git config -f .gitmodules submodule.olib.url "https://x-access-token:${OLIB_CHECKOUT_TOKEN}@github.com/oivindloe/olib.git"
           git submodule sync olib
           git submodule update --init --depth=1 olib
+      - name: Fetch main for buf breaking
+        if: ${{ hashFiles('buf.yaml') != '' }}
+        run: git fetch --depth=1 origin +main:refs/remotes/origin/main
       - name: Init
         run: |
           ./olib/scripts/init.sh --py --js --rust --cpp --go
