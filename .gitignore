@@ -71,3 +71,10 @@ node_modules
 
 # Temporary Playwright MCP dir
 .playwright-mcp/
+
+# Astro generated types/cache
+.astro/
+
+# Storybook static builds and Vitest browser failure screenshots
+storybook-static/
+__screenshots__/
