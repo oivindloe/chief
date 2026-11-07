@@ -137,8 +137,8 @@ class ClusterInfo(BuildArgoServiceClusterInfo, CdnClusterInfo, VersionClusterInf
 @version_template
 class Config:
     displayName = 'Chief'
-    # Full ARC runs-on label for the oivindloe light pool.
-    githubTestRunner = 'ol-base-oivindloe-light'
+    # Full ARC runs-on label. test-all exceeds the light pool's 6Gi limit.
+    githubTestRunner = 'ol-base-oivindloe-heavy'
     tools = ['python', 'javascript']
     license = 'apache'
     eval_suites = {'inbox': 'evals.inbox:get_suite'}
