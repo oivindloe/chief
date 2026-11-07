@@ -6,7 +6,7 @@ on:
   pull_request:
 jobs:
   test-all:
-    runs-on: ol-base-oivindloe-light
+    runs-on: ol-base-oivindloe-heavy
     steps:
       - name: Install Git LFS
         env:
