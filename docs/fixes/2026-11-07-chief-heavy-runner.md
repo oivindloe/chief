@@ -37,4 +37,4 @@ Status values: `Fixed` | `Rejected`
 
 ## Links
 
-- PR: <pending>
+- PR: https://github.com/oivindloe/chief/pull/69
