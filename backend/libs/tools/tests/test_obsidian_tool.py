@@ -21,10 +21,16 @@ from libs.clients.obsidian.errors import (
     ObsidianOutsideRootError,
     ObsidianSyncPendingError,
     ObsidianUnavailableError,
+    ObsidianVaultError,
 )
 from libs.clients.obsidian.protocol import ObsidianVaultClientProtocol
 from libs.tools.context import ToolContext
-from libs.tools.tools.obsidian import ObsidianTool, _valid_arguments
+from libs.tools.tools.clock import ClockTool
+from libs.tools.tools.obsidian import (
+    READINESS_UNAVAILABLE_REASON,
+    ObsidianTool,
+    _valid_arguments,
+)
 
 from olib.py.django.test.cases import OTestCase
 
@@ -48,7 +54,79 @@ def _make_ctx(
 
 
 class TestObsidianTool(OTestCase):
-    """Verify schemas, binding, dispatch, retry, and typed failure normalization."""
+    """Verify schemas, binding, one-call dispatch, and typed failure normalization."""
+
+    def test_base_tool_readiness_defaults_ready(self) -> None:
+        """Ordinary tools without an external startup dependency are ready by default."""
+        result = ClockTool().readiness(
+            _make_ctx(),
+            ToolInstance(id='clock-instance', type='clock'),
+        )
+
+        self.assertTrue(result.ready)
+        self.assertEqual(result.reason, '')
+
+    def test_readiness_reflects_injected_client_vault_status(self) -> None:
+        """Probe the configured vault through the same injected factory used by file operations."""
+        client = MagicMock()
+        client.get_status.return_value = {'vault_id': 'Personal', 'ready': False}
+        factory = MagicMock(return_value=client)
+        agent_id = uuid4()
+        instance = ToolInstance(id='vault', type='obsidian', config=_CONFIG)
+        ctx = _make_ctx(
+            agent_id=agent_id,
+            client_factory=cast(Callable[..., ObsidianVaultClientProtocol], factory),
+        )
+
+        blocked = ObsidianTool().readiness(ctx, instance)
+        client.get_status.return_value = {'vault_id': 'Personal', 'ready': True}
+        ready = ObsidianTool().readiness(ctx, instance)
+
+        self.assertFalse(blocked.ready)
+        self.assertTrue(ready.ready)
+        factory.assert_called_with(agent_id=str(agent_id), config=_CONFIG, instance_id='vault')
+        client.get_status.assert_called_with(vault_id='Personal')
+
+    def test_readiness_requires_literal_true_status(self) -> None:
+        """Malformed or merely truthy status values cannot open the dispatch gate."""
+        client = MagicMock()
+        factory = cast(Callable[..., ObsidianVaultClientProtocol], lambda **_kwargs: client)
+        tool = ObsidianTool()
+        instance = ToolInstance(id='vault', type='obsidian', config=_CONFIG)
+
+        for status in ({}, {'ready': None}, {'ready': 1}, {'ready': 'true'}):
+            with self.subTest(status=status):
+                client.get_status.return_value = status
+                self.assertFalse(tool.readiness(_make_ctx(agent_id=uuid4(), client_factory=factory), instance).ready)
+
+    def test_readiness_absorbs_client_failures_without_secret_details(self) -> None:
+        """Provider and transport failures return a generic operator-safe not-ready result."""
+        client = MagicMock()
+        client.get_status.side_effect = ObsidianUnavailableError('token abc123 was rejected')
+        instance = ToolInstance(id='vault', type='obsidian', config=_CONFIG)
+
+        result = ObsidianTool().readiness(
+            _make_ctx(
+                agent_id=uuid4(),
+                client_factory=cast(Callable[..., ObsidianVaultClientProtocol], lambda **_kwargs: client),
+            ),
+            instance,
+        )
+
+        self.assertFalse(result.ready)
+        self.assertNotIn('abc123', result.reason)
+        self.assertNotIn('token', result.reason.lower())
+
+    @override_settings(OBSIDIAN_VAULT_URL='', OBSIDIAN_VAULT_TOKEN='')
+    def test_readiness_without_service_url_is_not_ready(self) -> None:
+        """An installation without a configured vault service cannot confirm readiness."""
+        result = ObsidianTool().readiness(
+            _make_ctx(agent_id=uuid4()),
+            ToolInstance(id='vault', type='obsidian', config=_CONFIG),
+        )
+
+        self.assertFalse(result.ready)
+        self.assertEqual(result.reason, READINESS_UNAVAILABLE_REASON)
 
     def test_exposes_exact_function_surface(self) -> None:
         """Expose list/read/write/append/status, marking reads and status read-only."""
@@ -289,7 +367,7 @@ class TestObsidianTool(OTestCase):
         self.assertFalse(_valid_arguments('status', {'path': 'Journal'}))
 
     def test_maps_hard_typed_failures_to_common_kinds(self) -> None:
-        """Normalize every non-retryable Obsidian client failure without exposing provider details."""
+        """Normalize every hard Obsidian client failure without exposing provider details."""
         cases = (
             (ObsidianAuthError('safe auth failure'), 'auth'),
             (ObsidianForbiddenError('safe forbidden failure'), 'forbidden'),
@@ -340,116 +418,74 @@ class TestObsidianTool(OTestCase):
                 self.assertEqual(result['error']['kind'], 'config')
                 factory.assert_not_called()
 
-    def test_retries_sync_pending_then_succeeds_with_injected_sleep(self) -> None:
-        """Stall on sync_pending using the injected delay schedule, then return the eventual result."""
-        client = MagicMock()
-        client.read_text.side_effect = [
-            ObsidianSyncPendingError('first sync not complete'),
-            ObsidianSyncPendingError('first sync not complete'),
-            'hello',
-        ]
-        recorded_delays: list[float] = []
-        invoke = ObsidianTool(sleep=recorded_delays.append, delays=(0.05, 0.1, 0.2)).bind(
-            _make_ctx(
-                agent_id=uuid4(),
-                client_factory=cast(Callable[..., ObsidianVaultClientProtocol], lambda **_kwargs: client),
-            ),
-            ToolInstance(id='vault', type='obsidian', config=_CONFIG),
+    def test_file_operations_surface_failures_in_one_call(self) -> None:
+        """Return sync_pending/unavailable to the agent immediately, without a second attempt.
+
+        The agent decides what to do about an unsynced or unreachable vault, so every
+        file operation makes exactly one client call.
+        """
+        operations: tuple[tuple[str, dict[str, Any], str], ...] = (
+            ('list', {'path': 'Journal'}, 'list_dir'),
+            ('read', {'path': 'Journal/a.md'}, 'read_text'),
+            ('write', {'path': 'Journal/a.md', 'content': 'x'}, 'write_text'),
+            ('append', {'path': 'Journal/a.md', 'content': 'x'}, 'append_text'),
         )
-
-        result = invoke('read', {'path': 'Journal/a.md'})
-
-        self.assertEqual(result, {'ok': True, 'content': 'hello'})
-        self.assertEqual(recorded_delays, [0.05, 0.1])
-        self.assertEqual(client.read_text.call_count, 3)
-
-    def test_retries_unavailable_then_succeeds_with_injected_sleep(self) -> None:
-        """Retry a transient unavailable failure the same way as sync_pending."""
-        client = MagicMock()
-        client.append_text.side_effect = [ObsidianUnavailableError('vault service unreachable'), None]
-        recorded_delays: list[float] = []
-        invoke = ObsidianTool(sleep=recorded_delays.append, delays=(0.05, 0.1)).bind(
-            _make_ctx(
-                agent_id=uuid4(),
-                client_factory=cast(Callable[..., ObsidianVaultClientProtocol], lambda **_kwargs: client),
-            ),
-            ToolInstance(id='vault', type='obsidian', config=_CONFIG),
+        failures: tuple[tuple[ObsidianVaultError, str], ...] = (
+            (ObsidianSyncPendingError('first sync not complete'), 'sync_pending'),
+            (ObsidianUnavailableError('vault service unreachable'), 'unavailable'),
         )
+        for function, arguments, method_name in operations:
+            for failure, expected_kind in failures:
+                with self.subTest(function=function, kind=expected_kind):
+                    client = MagicMock()
+                    getattr(client, method_name).side_effect = failure
+                    factory = MagicMock(return_value=client)
+                    invoke = ObsidianTool().bind(
+                        _make_ctx(
+                            agent_id=uuid4(),
+                            client_factory=cast(Callable[..., ObsidianVaultClientProtocol], factory),
+                        ),
+                        ToolInstance(id='vault', type='obsidian', config=_CONFIG),
+                    )
 
-        result = invoke('append', {'path': 'Journal/a.md', 'content': 'x'})
+                    result = invoke(function, arguments)
 
-        self.assertEqual(result, {'ok': True})
-        self.assertEqual(recorded_delays, [0.05])
-        self.assertEqual(client.append_text.call_count, 2)
+                    self.assertEqual(
+                        result,
+                        {'ok': False, 'error': {'kind': expected_kind, 'message': str(failure)}},
+                    )
+                    self.assertEqual(getattr(client, method_name).call_count, 1)
 
-    def test_retries_exhausted_returns_retryable_failure_kind(self) -> None:
-        """Surface the retryable failure kind once the delay schedule is exhausted."""
-        client = MagicMock()
-        client.list_dir.side_effect = ObsidianSyncPendingError('first sync not complete')
-        recorded_delays: list[float] = []
-        invoke = ObsidianTool(sleep=recorded_delays.append, delays=(0.0, 0.0)).bind(
-            _make_ctx(
-                agent_id=uuid4(),
-                client_factory=cast(Callable[..., ObsidianVaultClientProtocol], lambda **_kwargs: client),
-            ),
-            ToolInstance(id='vault', type='obsidian', config=_CONFIG),
+    def test_status_surfaces_failures_in_one_call(self) -> None:
+        """Report an unsynced or unreachable vault from status in a single call."""
+        failures: tuple[tuple[ObsidianVaultError, str], ...] = (
+            (ObsidianSyncPendingError('first sync not complete'), 'sync_pending'),
+            (ObsidianUnavailableError('vault service unreachable'), 'unavailable'),
         )
+        for failure, expected_kind in failures:
+            with self.subTest(kind=expected_kind):
+                client = MagicMock()
+                client.get_status.side_effect = failure
+                factory = MagicMock(return_value=client)
+                invoke = ObsidianTool().bind(
+                    _make_ctx(
+                        agent_id=uuid4(),
+                        client_factory=cast(Callable[..., ObsidianVaultClientProtocol], factory),
+                    ),
+                    ToolInstance(id='vault', type='obsidian', config=_CONFIG),
+                )
 
-        result = invoke('list', {'path': 'Journal'})
+                result = invoke('status', {})
 
-        self.assertEqual(
-            result,
-            {'ok': False, 'error': {'kind': 'sync_pending', 'message': 'first sync not complete'}},
-        )
-        self.assertEqual(recorded_delays, [0.0, 0.0])
-        self.assertEqual(client.list_dir.call_count, 3)
+                self.assertEqual(
+                    result,
+                    {'ok': False, 'error': {'kind': expected_kind, 'message': str(failure)}},
+                )
+                self.assertEqual(client.get_status.call_count, 1)
 
-    def test_status_does_not_retry_sync_pending(self) -> None:
-        """Surface sync_pending from status immediately without sleeping."""
-        client = MagicMock()
-        client.get_status.side_effect = ObsidianSyncPendingError('first sync not complete')
-        recorded_delays: list[float] = []
-        invoke = ObsidianTool(sleep=recorded_delays.append, delays=(0.05, 0.1)).bind(
-            _make_ctx(
-                agent_id=uuid4(),
-                client_factory=cast(Callable[..., ObsidianVaultClientProtocol], lambda **_kwargs: client),
-            ),
-            ToolInstance(id='vault', type='obsidian', config=_CONFIG),
-        )
-
-        result = invoke('status', {})
-
-        self.assertEqual(
-            result,
-            {'ok': False, 'error': {'kind': 'sync_pending', 'message': 'first sync not complete'}},
-        )
-        self.assertEqual(recorded_delays, [])
-        self.assertEqual(client.get_status.call_count, 1)
-
-    def test_status_does_not_retry_unavailable(self) -> None:
-        """Surface unavailable from status immediately without sleeping."""
-        client = MagicMock()
-        client.get_status.side_effect = ObsidianUnavailableError('vault service unreachable')
-        recorded_delays: list[float] = []
-        invoke = ObsidianTool(sleep=recorded_delays.append, delays=(0.05, 0.1)).bind(
-            _make_ctx(
-                agent_id=uuid4(),
-                client_factory=cast(Callable[..., ObsidianVaultClientProtocol], lambda **_kwargs: client),
-            ),
-            ToolInstance(id='vault', type='obsidian', config=_CONFIG),
-        )
-
-        result = invoke('status', {})
-
-        self.assertEqual(
-            result,
-            {'ok': False, 'error': {'kind': 'unavailable', 'message': 'vault service unreachable'}},
-        )
-        self.assertEqual(recorded_delays, [])
-        self.assertEqual(client.get_status.call_count, 1)
-
-    def test_default_construction_uses_real_sleep(self) -> None:
-        """Default construction wires ``time.sleep`` so production callers stall for real."""
-        import time
-
-        self.assertIs(ObsidianTool()._sleep, time.sleep)  # pylint: disable=protected-access
+    def test_construction_takes_no_injection_parameters(self) -> None:
+        """Keep the default no-argument Tool constructor: no sleep or delay hooks remain."""
+        with self.assertRaises(TypeError):
+            ObsidianTool(sleep=lambda _delay: None)  # type: ignore[call-arg]
+        with self.assertRaises(TypeError):
+            ObsidianTool(delays=(0.0,))  # type: ignore[call-arg]

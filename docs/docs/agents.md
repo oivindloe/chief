@@ -213,9 +213,72 @@ triggers:
 | `max_sessions` | int | Max concurrent sessions; defaults to `1` for schedule/queue, `null` for manual and button |
 | `max_iterations` | int | Optional per-session iteration cap; must be at least `1` |
 | `max_cost_usd` | decimal | Optional positive per-session cost cap in USD |
+| `blocks` | list of block conditions | Optional gates that must all pass before a session starts (see Block conditions) |
 
 Trigger limits only narrow the agent-level `limits` and server defaults. Chief uses
 the lowest configured value at the global, agent, and trigger levels.
+
+### Block conditions
+
+`blocks` holds conditions that must pass before Chief starts a session for the
+trigger. Omitting `blocks` — or setting it to `[]` — keeps the trigger's existing
+behavior, so configs written before this field keep working unchanged.
+
+```yaml
+tools:
+  - id: journal-vault
+    type: obsidian
+    credential_ref: obsidian-sync
+    config:
+      vault: journal
+
+queues:
+  - id: journal
+
+triggers:
+  - name: journal-worker
+    kind: queue
+    queue: journal
+    prompt: Process the next journal item.
+    blocks:
+      - kind: tool_ready
+        tool: journal-vault
+```
+
+Semantics:
+
+- **Ordered AND.** Every entry must report ready. Chief evaluates entries in list
+  order and short-circuits on the first one that is not ready, so put the cheapest
+  or most likely blocker first.
+- **Fail closed.** An unknown condition handler, a failed probe, or a timeout counts
+  as not ready; the trigger does not start a session.
+- **Blocked dispatch is a skip, not a failure.** A blocked `queue` trigger leaves its
+  items available and retries on the next dispatch; a blocked `schedule` trigger skips
+  that cron tick without catching up; blocked `manual` and `button` starts report the
+  block reason instead of creating a session.
+
+#### `tool_ready`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `kind` | `tool_ready` | Required condition kind |
+| `tool` | string | Required `tools[].id` declared on this same agent |
+
+`tool_ready` waits until the named tool instance reports that it can support a new
+session. Most tools are always ready; the `obsidian` tool is ready only once its vault
+service reports that the initial sync finished, which keeps a journal or notes agent
+from working against an empty vault.
+
+The config editor's **Add trigger** helper automatically inserts one `tool_ready`
+condition per readiness-reporting tool already present in the document when it adds
+a `queue` or `schedule` trigger. The helper preserves `tools[]` order. Manual, button,
+and agent triggers remain ungated, tools added later do not backfill existing triggers,
+and editing or removing conditions remains YAML-only.
+
+The reference is strict: `tool` must match a `tools[].id` on the same agent, unknown
+`kind` values are rejected, and unknown fields inside a condition are rejected. All
+three are config validation failures at save or disk-sync time rather than conditions
+that silently never block.
 
 ---
 
@@ -531,15 +594,28 @@ backend directly.
 | `status` | Report first-sync readiness and whether continuous headless Sync is alive | yes |
 
 Every path must resolve within one of the tool instance's configured `roots`
-(enforced server-side by the vault service). Until a vault's **initial full
-Sync** completes, file operations stall/retry on a retryable `sync_pending`
-condition with backoff; the tool call blocks rather than failing immediately,
-for roughly 30 seconds total (a geometric delay schedule) before surfacing the
-retryable failure kind to the caller. `status` does **not** stall or retry:
-`ready: false` is a successful observation. Its fields are Chief first-sync
-and process liveness (`ready`, `initial_sync_complete`, `sync_process_alive`),
-not `ob sync-status` and not a “caught up with Obsidian Sync” indicator.
-Results use the shared `{ok, …}` /
+(enforced server-side by the vault service). The **initial full Sync** remains
+the readiness boundary: completion publishes `.sync-ready` and makes
+`status.ready` true. Gate session start with a trigger `blocks` entry
+`kind: tool_ready` and `tool: <instance id>` — see the complete example under
+[Block conditions](#block-conditions). `status` returns only `ready`,
+`initial_sync_complete`, and `sync_process_alive` (Chief first-sync and
+process liveness, not `ob sync-status` and not a “caught up with Obsidian
+Sync” indicator); `ready: false` is a successful observation.
+
+Once first Sync has started, `list` and `read` may expose a partial,
+concurrently changing checkout. A leftover checkout after a Sync timeout is
+still readable. Missing paths remain `not_found`, and root enforcement always
+applies. If Sync never started or the vault was stopped, `list` and `read`
+return `sync_pending`. A hard `ob` failure returns `unavailable`.
+
+`write` and `append` require the first full Sync. They return `sync_pending`
+while Sync is still in progress, after a timeout leftover, or if Sync never
+started or was stopped, and `unavailable` after a hard `ob` failure. There is
+no tool retry or sleep; the first typed result is returned. The HTTP request
+can still wait up to its configured timeout if the vault service hangs. A
+higher-level caller may still treat `sync_pending` / `unavailable` as
+transient. Results use the shared `{ok, …}` /
 typed `{ok: false, error: {kind, message}}` shape, where `kind` includes
 `auth`, `forbidden`, `outside_root`, `not_found`, `sync_pending`,
 `unavailable`, and `config`.

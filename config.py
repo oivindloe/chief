@@ -137,11 +137,8 @@ class ClusterInfo(BuildArgoServiceClusterInfo, CdnClusterInfo, VersionClusterInf
 @version_template
 class Config:
     displayName = 'Chief'
-    # GitHub org and repo for managed CI workflows (orun init --github).
-    githubOrg = 'magicl'
-    githubRepo = 'chief'
-    # True → ARC runner label ol-base-{githubOrg}; False → ol-base-{githubRepo}.
-    githubInOrg = False
+    # Full ARC runs-on label. test-all exceeds the light pool's 6Gi limit.
+    githubTestRunner = 'ol-base-oivindloe-heavy'
     tools = ['python', 'javascript']
     license = 'apache'
     eval_suites = {'inbox': 'evals.inbox:get_suite'}

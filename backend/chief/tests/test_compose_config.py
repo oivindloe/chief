@@ -259,6 +259,23 @@ class TestDropboxOAuthApplicationConfig(OTestCase):
         self.assertIn('`https://<origin>/settings/keys/oauth/dropbox/callback/`', architecture)
 
 
+class TestComposeLoopbackHost(OTestCase):
+    """Compose edge must not leave the browser on a numeric loopback host."""
+
+    def test_sends_loopback_hosts_to_localhost(self) -> None:
+        """Numeric loopback in the browser host redirects to localhost, keeping the port."""
+        repository_root = Path(__file__).resolve().parents[3]
+        nginx = (repository_root / 'infra/docker/nginx.conf').read_text()
+        self.assertIn('map $http_host $loopback_canonical_host {', nginx)
+        self.assertIn(r'~^127\.0\.0\.1:(\d+)$ localhost:$1;', nginx)
+        self.assertIn(r'~^127\.0\.0\.1$ localhost;', nginx)
+        self.assertIn(r'~^\[::1\]:(\d+)$ localhost:$1;', nginx)
+        self.assertIn(r'~^\[::1\]$ localhost;', nginx)
+        self.assertIn('default "";', nginx)
+        self.assertIn('if ($loopback_canonical_host != "") {', nginx)
+        self.assertIn('return 308 $scheme://$loopback_canonical_host$request_uri;', nginx)
+
+
 class TestComposeSseProxy(OTestCase):
     """Check that every long-lived event stream uses the SSE proxy path."""
 
@@ -371,6 +388,51 @@ class TestComposeRichContentAssets(OTestCase):
             rich_content_mounts,
             ['/mnt/infra-assets/chief/js/gen:/etc/storage/public/static/web/rich-content:ro'],
         )
+
+
+class TestComposeNginxNaming(OTestCase):
+    """Check slot-safe names and config restart watches on the local nginx services."""
+
+    # Service -> (container_name source string, conf file it mounts at /etc/nginx/nginx.conf).
+    # The suffix carries an empty default so rendering without a slot env file stays quiet.
+    expected_nginx_services = {
+        'chief-nginx': ('chief-nginx${DOCO_SUFFIX:-}', './nginx.conf'),
+        'chief-static': ('chief-static${DOCO_SUFFIX:-}', '../k8s/nginx.static.conf'),
+    }
+
+    def test_nginx_services_declare_slot_safe_container_names(self) -> None:
+        """Both nginx containers take an explicit name that stays unique across DOCO slots."""
+        repository_root = Path(__file__).resolve().parents[3]
+        compose_path = repository_root / 'infra/docker/docker-compose.yml'
+        compose = YAML(typ='safe').load(compose_path.read_text())
+
+        for service_name, (container_name, _conf_path) in self.expected_nginx_services.items():
+            self.assertEqual(compose['services'][service_name].get('container_name'), container_name)
+
+    def test_only_nginx_services_declare_container_names(self) -> None:
+        """Explicit names stay on the nginx services and nowhere else."""
+        repository_root = Path(__file__).resolve().parents[3]
+        compose_path = repository_root / 'infra/docker/docker-compose.yml'
+        compose = YAML(typ='safe').load(compose_path.read_text())
+
+        named_services = {
+            service_name for service_name, service in compose['services'].items() if 'container_name' in service
+        }
+        self.assertEqual(named_services, set(self.expected_nginx_services))
+
+    def test_nginx_services_restart_on_mounted_config_change(self) -> None:
+        """Each service watches exactly the conf file it bind-mounts and restarts on edits."""
+        repository_root = Path(__file__).resolve().parents[3]
+        compose_path = repository_root / 'infra/docker/docker-compose.yml'
+        compose = YAML(typ='safe').load(compose_path.read_text())
+
+        for service_name, (_container_name, conf_path) in self.expected_nginx_services.items():
+            service = compose['services'][service_name]
+            self.assertEqual(
+                service.get('develop', {}).get('watch'),
+                [{'path': conf_path, 'action': 'restart'}],
+            )
+            self.assertIn(f'{conf_path}:/etc/nginx/nginx.conf:ro', service['volumes'])
 
 
 class TestComposeObsidianVaultService(OTestCase):
@@ -679,3 +741,20 @@ class TestProductionContainerConfig(OTestCase):
         backend_dockerignore = backend_dockerignore_path.read_text()
         self.assertIn('\n.output\n', backend_dockerignore)
         self.assertNotIn('!backend/.output/static', backend_dockerignore)
+
+    def test_production_backend_image_uses_shared_slim_runtime(self) -> None:
+        """The hosted backend installs only a refreshed CA bundle on the pinned slim image."""
+        repository_root = Path(__file__).resolve().parents[3]
+        source = (repository_root / 'backend/Dockerfile.prod').read_text()
+
+        self.assertIn(f'FROM {_PYTHON_IMAGE}', source)
+        self.assertIn('ENV DEBUG=false', source)
+        self.assertIn('ENV DJANGO_ENV=production', source)
+        self.assertIn('apt-get install -y --no-install-recommends ca-certificates', source)
+        self.assertIn('rm -rf /var/lib/apt/lists/*', source)
+        self.assertIn('uv export --frozen --package chief-backend-env', source)
+        self.assertIn('--require-hashes', source)
+        self.assertNotIn('default-libmysqlclient-dev', source)
+        self.assertNotIn('net-tools', source)
+        self.assertNotIn('wget', source)
+        self.assertNotIn('curl', source)
