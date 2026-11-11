@@ -36,8 +36,13 @@ dmypy.json
 # Project outputs
 .output/
 .static/
-.venv/
+# No trailing slash: `.venv/` matches only directories. Linked worktrees
+# symlink .venv at the main checkout, and that symlink must be ignored too.
+.venv
 .pyenv/
+
+# Leftover logo_images staging dirs if a prepare process is killed mid-run
+.logo-images-*/
 
 # direnv-generated orun completion scripts
 .direnv/
@@ -66,3 +71,10 @@ node_modules
 
 # Temporary Playwright MCP dir
 .playwright-mcp/
+
+# Astro generated types/cache
+.astro/
+
+# Storybook static builds and Vitest browser failure screenshots
+storybook-static/
+__screenshots__/

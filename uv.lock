@@ -228,6 +228,15 @@ wheels = [
 ]
 
 [[package]]
+name = "backoff"
+version = "2.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/47/d7/5bbeb12c44d7c4f2fb5b56abce497eb5ed9f34d85701de869acedd602619/backoff-2.2.1.tar.gz", hash = "sha256:03f829f5bb1923180821643f8753b0502c3b682293992485b0eef2807afa5cba", size = 17001, upload-time = "2022-10-05T19:19:32.061Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/df/73/b6e24bd22e6720ca8ee9a85a0c4a2971af8497d8f3193fa05390cbd46e09/backoff-2.2.1-py3-none-any.whl", hash = "sha256:63579f9a0628e06278f7e47b7d7d5b6ce20dc65c5e96a6f3ca99a6adca0396e8", size = 15148, upload-time = "2022-10-05T19:19:30.546Z" },
+]
+
+[[package]]
 name = "bandit"
 version = "1.9.4"
 source = { registry = "https://pypi.org/simple" }
@@ -979,6 +988,7 @@ dependencies = [
     { name = "parproc" },
     { name = "pillow" },
     { name = "pip" },
+    { name = "posthog" },
     { name = "pre-commit" },
     { name = "pre-commit-hooks" },
     { name = "psycopg", extra = ["binary", "pool"] },
@@ -999,8 +1009,10 @@ dependencies = [
     { name = "relay" },
     { name = "requests" },
     { name = "rich" },
+    { name = "ruamel-yaml" },
     { name = "selenium" },
     { name = "semver" },
+    { name = "sentry-sdk", extra = ["django"] },
     { name = "sh" },
     { name = "strawberry-graphql", extra = ["cli"] },
     { name = "strawberry-graphql-django" },
@@ -1056,9 +1068,10 @@ requires-dist = [
     { name = "oauth2client", specifier = "==4.1.3" },
     { name = "openpyxl" },
     { name = "pandas" },
-    { name = "parproc", specifier = ">=0.7.1" },
+    { name = "parproc", specifier = ">=0.8.1" },
     { name = "pillow" },
     { name = "pip" },
+    { name = "posthog", specifier = "==7.9.12" },
     { name = "pre-commit" },
     { name = "pre-commit-hooks" },
     { name = "psycopg", extras = ["binary"] },
@@ -1080,8 +1093,10 @@ requires-dist = [
     { name = "relay" },
     { name = "requests" },
     { name = "rich" },
+    { name = "ruamel-yaml" },
     { name = "selenium" },
     { name = "semver" },
+    { name = "sentry-sdk", extras = ["django"], specifier = "==2.55.0" },
     { name = "sh", specifier = "==2.0.7" },
     { name = "strawberry-graphql", extras = ["cli"] },
     { name = "strawberry-graphql-django" },
@@ -1941,16 +1956,16 @@ wheels = [
 
 [[package]]
 name = "parproc"
-version = "0.7.1"
+version = "0.8.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "rich" },
     { name = "watchdog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/35/3d/58815233a29097537ec10f65cc2bec374cf2e9450007584dc660eec574af/parproc-0.7.1.tar.gz", hash = "sha256:c2e9a71cf403c00a77e80766396abbb2ee6101cadee8e88c5759d0bec7d127c6", size = 67847, upload-time = "2026-06-28T21:43:16.422Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/82/fb/e7bbe6f3f7cff40b3d55197115240b7a66b5fed8b194ab11cb441f2fa435/parproc-0.8.1.tar.gz", hash = "sha256:a6649681f5c30a043880dca4588d9e9aaac1dc61a21363ad850373f036ac8c99", size = 74207, upload-time = "2026-11-08T10:26:17.933Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6c/2e/da86fa9f59346b39ddcc5523e1b54c573a919fc46730c63d9d047b4b8b1e/parproc-0.7.1-py3-none-any.whl", hash = "sha256:1d3f3334fd50903061c59a8acc02b97c7c07a96fb55d96ba1b5baabb0801e252", size = 64434, upload-time = "2026-06-28T21:43:15.236Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/03/47de5c03e134e38df55fba9399593bd9aee74a987150c954dd2439397dc2/parproc-0.8.1-py3-none-any.whl", hash = "sha256:f1d0a20497272f8a3fe3e0b858d6c3886f877ffbdd4246250d3857cac66110e7", size = 70389, upload-time = "2026-11-08T10:26:16.694Z" },
 ]
 
 [[package]]
@@ -1976,7 +1991,7 @@ name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ptyprocess" },
+    { name = "ptyprocess", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
@@ -2037,6 +2052,23 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e5/69/882ee5c9d017149285cab114ebeab373308ef0f874fcdac9beb90e0ac4da/ply-3.11.tar.gz", hash = "sha256:00c7c1aaa88358b9c765b6d3000c6eec0ba42abca5351b095321aef446081da3", size = 159130, upload-time = "2018-02-15T19:01:31.097Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a3/58/35da89ee790598a0700ea49b2a66594140f44dec458c07e8e3d4979137fc/ply-3.11-py2.py3-none-any.whl", hash = "sha256:096f9b8350b65ebd2fd1346b12452efe5b9607f7482813ffca50c22722a807ce", size = 49567, upload-time = "2018-02-15T19:01:27.172Z" },
+]
+
+[[package]]
+name = "posthog"
+version = "7.9.12"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "backoff" },
+    { name = "distro" },
+    { name = "python-dateutil" },
+    { name = "requests" },
+    { name = "six" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1c/a7/2865487853061fbd62383492237b546d2d8f7c1846272350d2b9e14138cd/posthog-7.9.12.tar.gz", hash = "sha256:ebabf2eb2e1c1fbf22b0759df4644623fa43cc6c9dcbe9fd429b7937d14251ec", size = 176828, upload-time = "2026-03-12T09:01:15.184Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/65/a9/7a803aed5a5649cf78ea7b31e90d0080181ba21f739243e1741a1e607f1f/posthog-7.9.12-py3-none-any.whl", hash = "sha256:7175bd1698a566bfea98a016c64e3456399f8046aeeca8f1d04ae5bf6c5a38d0", size = 202469, upload-time = "2026-03-12T09:01:13.38Z" },
 ]
 
 [[package]]
@@ -2867,6 +2899,24 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/72/d1/d3159231aec234a59dd7d601e9dd9fe96f3afff15efd33c1070019b26132/semver-3.0.4.tar.gz", hash = "sha256:afc7d8c584a5ed0a11033af086e8af226a9c0b206f313e0301f8dd7b6b589602", size = 269730, upload-time = "2025-01-24T13:19:27.617Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a6/24/4d91e05817e92e3a61c8a21e08fd0f390f5301f1c448b137c57c4bc6e543/semver-3.0.4-py3-none-any.whl", hash = "sha256:9c824d87ba7f7ab4a1890799cec8596f15c1241cb473404ea1cb0c55e4b04746", size = 17912, upload-time = "2025-01-24T13:19:24.949Z" },
+]
+
+[[package]]
+name = "sentry-sdk"
+version = "2.55.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e9/b8/285293dc60fc198fffc3fcdbc7c6d4e646e0f74e61461c355d40faa64ceb/sentry_sdk-2.55.0.tar.gz", hash = "sha256:3774c4d8820720ca4101548131b9c162f4c9426eb7f4d24aca453012a7470f69", size = 424505, upload-time = "2026-03-17T14:15:51.707Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9a/66/20465097782d7e1e742d846407ea7262d338c6e876ddddad38ca8907b38f/sentry_sdk-2.55.0-py2.py3-none-any.whl", hash = "sha256:97026981cb15699394474a196b88503a393cbc58d182ece0d3abe12b9bd978d4", size = 449284, upload-time = "2026-03-17T14:15:49.604Z" },
+]
+
+[package.optional-dependencies]
+django = [
+    { name = "django" },
 ]
 
 [[package]]
