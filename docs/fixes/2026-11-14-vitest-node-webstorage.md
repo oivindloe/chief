@@ -50,4 +50,4 @@ Status: `Fixed` | `Rejected` (empty while review is in progress).
 
 ## Links
 
-- PR: <url when opened>
+- PR: https://github.com/oivindloe/chief/pull/71
