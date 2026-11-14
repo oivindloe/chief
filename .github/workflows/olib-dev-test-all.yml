@@ -31,7 +31,10 @@ jobs:
           esac
           archive="$RUNNER_TEMP/git-lfs.tar.gz"
           bin_dir="$RUNNER_TEMP/git-lfs-bin"
-          curl --fail --location --silent --show-error \
+          # Release downloads occasionally return 5xx (seen: 504); curl retries those and its own
+          # timeouts as transient, so a stalled connection cannot hang until the job timeout.
+          curl --fail --location --silent --show-error --retry 5 --retry-delay 5 \
+            --connect-timeout 20 --max-time 120 \
             "https://github.com/git-lfs/git-lfs/releases/download/v${GIT_LFS_VERSION}/git-lfs-linux-${archive_arch}-v${GIT_LFS_VERSION}.tar.gz" \
             --output "$archive"
           echo "${archive_sha256}  ${archive}" | sha256sum --check
@@ -63,7 +66,12 @@ jobs:
           git submodule update --init --depth=1 olib
       - name: Fetch main for buf breaking
         if: ${{ hashFiles('buf.yaml') != '' }}
-        run: git fetch --depth=1 origin +main:refs/remotes/origin/main
+        env:
+          FETCH_TOKEN: ${{ github.token }}
+        # Consumer checkout does not persist credentials, so `origin` has no auth; pass the job
+        # token in the URL (never written to git config) so private repos can fetch main. Skip
+        # submodule recursion: consumers may have SSH submodules the runner cannot authenticate.
+        run: git fetch --depth=1 --no-recurse-submodules "https://x-access-token:${FETCH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" +main:refs/remotes/origin/main
       - name: Init
         run: |
           ./olib/scripts/init.sh --py --js --rust --cpp --go
