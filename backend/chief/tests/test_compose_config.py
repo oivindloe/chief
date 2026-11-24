@@ -1,5 +1,6 @@
-# Licensed under the Apache License, Version 2.0 (the "License");
 # Copyright 2024 Øivind Loe
+# SPDX-License-Identifier: Apache-2.0
+# Licensed under the Apache License, Version 2.0 (the "License");
 # See LICENSE file or http://www.apache.org/licenses/LICENSE-2.0 for details.
 # ~
 """Verify Docker Compose and container entrypoint conventions."""
@@ -20,8 +21,8 @@ from ruamel.yaml import YAML
 from olib.py.cli.run.utils.envfiles import split_env_files
 from olib.py.django.test.cases import OTestCase
 
-_PYTHON_IMAGE = 'python:3.13-slim@sha256:6771159cd4fa5d9bba1258caf0b82e6b73458c694d178ad97c5e925c2d0e1a91'
-_UV_IMAGE = 'ghcr.io/astral-sh/uv:0.11.29@' + 'sha256:eb2843a1e56fd9e30c7276ce1a52cba86e64c7b385f5e3279a0e08e02dd058fc'
+_PYTHON_IMAGE = 'python:3.15-slim@sha256:63bb298d2b7b88f176f51b5189f54ce6535c997682ea70885d2132f5d473a8a5'
+_UV_IMAGE = 'ghcr.io/astral-sh/uv:0.13.9@' + 'sha256:d3b601f0c7b118bc1753febf7c41cc80981df678445e0254284eecf84db79a7d'
 _NGINX_IMAGE = 'nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de'
 
 
@@ -563,9 +564,18 @@ class TestComposeObsidianVaultService(OTestCase):
         repository_root = Path(__file__).resolve().parents[3]
         dockerfile = (repository_root / 'services/obsidian/Dockerfile').read_text()
         requirements_txt = repository_root / 'services/obsidian/requirements.txt'
+        from_images = re.findall(r'^FROM (\S+)', dockerfile, flags=re.MULTILINE)
 
         self.assertFalse(requirements_txt.exists(), 'requirements.txt must not duplicate uv.lock')
         self.assertIn('uv export --frozen --package obsidian-vault', dockerfile)
+        self.assertEqual(from_images, [_PYTHON_IMAGE])
+        self.assertIn('ENV OBSIDIAN_HEADLESS_VERSION=0.0.14', dockerfile)
+        self.assertIn('setup_22.x', dockerfile)
+        self.assertIn(
+            'python -m pip install --disable-pip-version-check --root-user-action=ignore uv',
+            dockerfile,
+        )
+        self.assertNotIn('ghcr.io/astral-sh/uv', dockerfile)
         self.assertRegex(dockerfile, r'OBSIDIAN_HEADLESS_VERSION=\d+\.\d+\.\d+')
         self.assertIn('npm install -g "obsidian-headless@${OBSIDIAN_HEADLESS_VERSION}"', dockerfile)
         self.assertNotIn('npm install -g obsidian-headless\n', dockerfile)
@@ -586,6 +596,23 @@ class TestComposeObsidianVaultService(OTestCase):
         self.assertIn('`$KNOX/chief/{cluster}/obsidian-vault.txt`', architecture)
         self.assertIn('- `token` → `OBSIDIAN_VAULT_TOKEN`', architecture)
         self.assertIn('OBSIDIAN_VAULT_TOKEN_FILE', architecture)
+
+
+class TestPythonBaseImages(OTestCase):
+    """Check dev, production, and vault images use Python 3.15 (slim digest or unpinned dev)."""
+
+    def test_dev_image_uses_unpinned_python_315(self) -> None:
+        """The dev backend image uses an unpinned python:3.15 base and pip-installed uv."""
+        repository_root = Path(__file__).resolve().parents[3]
+        dockerfile = (repository_root / 'backend/Dockerfile.dev').read_text()
+        from_images = re.findall(r'^FROM (\S+)', dockerfile, flags=re.MULTILINE)
+
+        self.assertEqual(from_images, ['python:3.15'])
+        self.assertIn(
+            'python -m pip install --disable-pip-version-check --root-user-action=ignore uv',
+            dockerfile,
+        )
+        self.assertNotIn('ghcr.io/astral-sh/uv', dockerfile)
 
 
 class TestCeleryEntrypointLogging(OTestCase):

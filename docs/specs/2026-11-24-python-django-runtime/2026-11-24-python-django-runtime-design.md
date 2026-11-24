@@ -3,7 +3,7 @@
 Epic: [Runtime upgrades](../../epics/2026-11-24-runtime-upgrades.md) · Spec **1 of 3** · Item: **Python and Django runtime**
 
 **Branch:** `feat/2026-11-24-python-django-runtime`
-Status: **plan**
+Status: **review**
 
 ## Goal
 

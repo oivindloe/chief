@@ -1,10 +1,9 @@
-# Licensed under the Apache License, Version 2.0 (the "License");
 # Copyright 2024 Øivind Loe
+# SPDX-License-Identifier: Apache-2.0
+# Licensed under the Apache License, Version 2.0 (the "License");
 # See LICENSE file or http://www.apache.org/licenses/LICENSE-2.0 for details.
 # ~
 """Parse local credential YAML files without Django dependencies."""
-
-from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -98,7 +97,7 @@ def _strict_safe_load(raw: str) -> object:
         failed = True
     finally:
         if loader is not None:
-            loader.dispose()  # type: ignore[no-untyped-call]
+            loader.dispose()
         loader = None
         raw = ''
     if failed:
