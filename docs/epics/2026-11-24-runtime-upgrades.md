@@ -1,19 +1,19 @@
 # Epic: Runtime upgrades
 
-Status: **planning**
+Status: **in progress**
 Roadmap: none.
 
 Bring Chief onto Django 6.1.3 and Python 3.15, and refresh the other runtimes in the dev stack: chief-owned Python packages and Python base images, the dashboard JS packages, and the Compose service images plus `obsidian-headless`. Each surface is its own spec so one lockfile failure stays in one place. Behavior stays the same. Code changes only keep tests, lint, and the dev stack working on the new versions.
 
 ## Specs
 
-- [ ] 1. Python and Django runtime
+- [ ] 1. Python and Django runtime — [spec](../specs/2026-11-24-python-django-runtime/)
 - [ ] 2. Dashboard JS packages
 - [ ] 3. Compose service images and obsidian-headless
 
 Build order (implementation): **1 → 2 → 3**
 
-Phasing: Spec 1 design and implementation wait until olib has a commit whose `requires-python` covers 3.15 and whose `PYTHON_VERSION` is `'3.15'`. Specs 2 and 3 stay queued behind spec 1. The Django 6.1.3 commit on olib `origin/main` does not satisfy that gate.
+Phasing: Spec 1 uses olib `791294d6d57b3707cea1838c0b6ac48c2f65b91d`, whose `requires-python` covers 3.15 and whose `PYTHON_VERSION` is `'3.15.2'`. Specs 2 and 3 stay queued behind spec 1.
 
 ## Build order
 
