@@ -1,5 +1,6 @@
-# Licensed under the Apache License, Version 2.0 (the "License");
 # Copyright 2024 Øivind Loe
+# SPDX-License-Identifier: Apache-2.0
+# Licensed under the Apache License, Version 2.0 (the "License");
 # See LICENSE file or http://www.apache.org/licenses/LICENSE-2.0 for details.
 # ~
 """Dev/infra CLI config for Chief, the agent orchestrator.
@@ -34,9 +35,7 @@ from olib.py.cli.run.templates.buildArgoService import (
 from olib.py.cli.run.templates.buildArgoService import (
     ClusterInfo as BuildArgoServiceClusterInfo,
 )
-from olib.py.cli.run.templates.buildArgoService import (
-    buildArgoService,
-)
+from olib.py.cli.run.templates.buildArgoService import buildArgoService
 from olib.py.cli.run.templates.cdn import CdnClusterInfoMixin as CdnClusterInfo
 from olib.py.cli.run.templates.cdn import CdnInfo, ensure_cdn_dir, sync_dir_to_cdn
 from olib.py.cli.run.templates.django_ import (
@@ -296,7 +295,7 @@ def _implement_run_agent() -> click.Command:
                     'spec': spec,
                     'spec_file': spec_file,
                 },
-                stream=click.get_text_stream('stdout'),
+                stream=click.get_text_stream('stdout'),  # type: ignore[operator]
             )
         except (ValueError, OSError) as exc:
             raise click.ClickException(str(exc)) from exc

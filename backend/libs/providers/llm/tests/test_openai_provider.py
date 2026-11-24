@@ -1,5 +1,6 @@
-# Licensed under the Apache License, Version 2.0 (the "License");
 # Copyright 2024 Øivind Loe
+# SPDX-License-Identifier: Apache-2.0
+# Licensed under the Apache License, Version 2.0 (the "License");
 # See LICENSE file or http://www.apache.org/licenses/LICENSE-2.0 for details.
 # ~
 from unittest.mock import patch
@@ -19,7 +20,7 @@ class TestOpenAIProviderSampling(OTestCase):
         response = httpx.Response(401, request=request, json={'error': {'message': 'bad key'}})
         api_failure = AuthenticationError(
             message='Error code: 401',
-            response=response,
+            response=response,  # type: ignore[arg-type]
             body={'error': {'message': 'bad key'}},
         )
         with patch.object(provider, 'stream', side_effect=api_failure):

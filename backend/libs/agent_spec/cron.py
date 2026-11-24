@@ -1,10 +1,9 @@
-# Licensed under the Apache License, Version 2.0 (the "License");
 # Copyright 2024 Øivind Loe
+# SPDX-License-Identifier: Apache-2.0
+# Licensed under the Apache License, Version 2.0 (the "License");
 # See LICENSE file or http://www.apache.org/licenses/LICENSE-2.0 for details.
 # ~
 """Cron validation and parsing for schedule triggers (UTC, 5-field crontab)."""
-
-from __future__ import annotations
 
 from dataclasses import dataclass
 
@@ -47,8 +46,13 @@ class _CronSlices(crontab_module.CronSlices):  # type: ignore[misc]
 class _CronSlice(crontab_module.CronSlice):  # type: ignore[misc]
     """Cron slice with custom range parser (matches django-celery-beat)."""
 
-    def get_range(self, *vrange: str) -> list[crontab_module.CronRange | _CronRange]:
-        ret = _CronRange(self, *vrange)
+    def get_range(
+        self,
+        *vrange: str,
+        random: bool = False,
+    ) -> list[crontab_module.CronRange | _CronRange]:
+        """Build custom range objects like django-celery-beat validators."""
+        ret = _CronRange(self, *vrange, random=random)
         if ret.dangling is not None:
             return [ret.dangling, ret]
         return [ret]
