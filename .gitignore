@@ -78,3 +78,8 @@ node_modules
 # Storybook static builds and Vitest browser failure screenshots
 storybook-static/
 __screenshots__/
+
+# Vitest annotate attachments and optional coverage output
+.vitest-attachments/
+/coverage/
+/js/coverage/
