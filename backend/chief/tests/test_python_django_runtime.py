@@ -13,7 +13,7 @@ from typing import Any
 
 from olib.py.django.test.cases import OTestCase
 
-OLIB_GITLINK = '791294d6d57b3707cea1838c0b6ac48c2f65b91d'
+OLIB_GITLINK = '247de98a8b87c3ab9871afa6564c4159d077e910'
 FORBIDDEN_BEAT_REV = '0ee32beb51ebcfe4198d47f075e43db4d1b5aa9a'
 DJANGO_RANGE = '>=6.1.3,<6.2'
 BEAT_PIN = 'django-celery-beat==2.9.0'
