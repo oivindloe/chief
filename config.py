@@ -37,7 +37,7 @@ from olib.py.cli.run.templates.buildArgoService import (
 )
 from olib.py.cli.run.templates.buildArgoService import buildArgoService
 from olib.py.cli.run.templates.cdn import CdnClusterInfoMixin as CdnClusterInfo
-from olib.py.cli.run.templates.cdn import CdnInfo, ensure_cdn_dir, sync_dir_to_cdn
+from olib.py.cli.run.templates.cdn import ensure_cdn_dir, sync_dir_to_cdn
 from olib.py.cli.run.templates.django_ import (
     DjangoConfig,
     _primary_django_config,
@@ -60,6 +60,9 @@ from olib.py.cli.run.templates.version import VersionClusterInfo
 from olib.py.cli.run.templates.version import version as version_template
 from olib.py.cli.run.tools.init.js_ import prepare_js_runtime
 from olib.py.cli.run.utils.postgres import PostgresConfig
+from olib.py.infra.images.results import Promotion
+from olib.py.infra.site import cdns as site_cdns
+from olib.py.infra.site import promotion_repositories
 
 
 class TargetInfo(VersionClusterInfo, AssetsClusterInfo):
@@ -144,11 +147,14 @@ class Config:
     eval_sample_runner = 'evals.inbox:get_sample_runner'
     eval_log_root = '.output/usecase-logs'
 
-    cdns: dict[str, CdnInfo] = {
-        'onas': CdnInfo(
-            upload_user='oivind',
-            base_path='/volume1/infra',
-            hostname='onas',
+    cdns = site_cdns
+
+    promotions: dict[str, Promotion] = {
+        'chief-stage': Promotion(
+            name='chief-stage',
+            repository=promotion_repositories['env'],
+            values_file='chief/chief-stage/values.yml',
+            key='images',
         ),
     }
 
@@ -165,11 +171,6 @@ class Config:
         'chief-stage': ClusterInfo(
             release_name='chief-stage',
             cluster='dev',
-            docker_images={
-                'backend': './backend/Dockerfile.prod',
-                'static': './infra/k8s/Dockerfile.static.stage',
-            },
-            registry_url='registry.dev.oivindloe.com',
             default=True,
             cdn='onas',
             host='https://chief.dev.oivindloe.com',
