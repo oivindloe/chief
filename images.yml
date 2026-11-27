@@ -1,0 +1,22 @@
+images:
+  backend:
+    context: .
+    repository: chief/backend
+    consumers: [backend, celery-worker, celery-beat]
+    variants:
+      release:
+        dockerfile: backend/Dockerfile.prod
+    tag:
+      strategy: git
+  static:
+    context: .
+    repository: chief/static
+    variants:
+      stage:
+        dockerfile: infra/k8s/Dockerfile.static.stage
+        requires: ['django.collectstatic::backend']
+    tag:
+      strategy: git
+bindings:
+  - {registry: dev, image: backend, variant: release, promotion: chief-stage}
+  - {registry: dev, image: static, variant: stage, promotion: chief-stage}

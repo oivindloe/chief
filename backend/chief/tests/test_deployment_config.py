@@ -1,5 +1,6 @@
-# Licensed under the Apache License, Version 2.0 (the "License");
 # Copyright 2024 Øivind Loe
+# SPDX-License-Identifier: Apache-2.0
+# Licensed under the Apache License, Version 2.0 (the "License");
 # See LICENSE file or http://www.apache.org/licenses/LICENSE-2.0 for details.
 # ~
 """Verify Chief's hosted deployment configuration contract."""
@@ -43,20 +44,15 @@ class TestStageDeploymentConfig(OTestCase):
 
         self.assertEqual(stage.release_name, 'chief-stage')
         self.assertEqual(stage.cluster, 'dev')
-        self.assertEqual(stage.registry_url, 'registry.dev.oivindloe.com')
+        self.assertIsNone(stage.registry_url)
+        self.assertIsNone(stage.registry_ca_cert_path)
         self.assertEqual(stage.host, 'https://chief.dev.oivindloe.com')
         self.assertTrue(stage.default)
         self.assertEqual(stage.version_increments, ['debug'])
         self.assertFalse(stage.version_push_tag)
         self.assertEqual(stage.static_dir, 'backend/.output/static')
         self.assertEqual(stage.cdn, 'onas')
-        self.assertEqual(
-            stage.docker_images,
-            {
-                'backend': './backend/Dockerfile.prod',
-                'static': './infra/k8s/Dockerfile.static.stage',
-            },
-        )
+        self.assertEqual(stage.docker_images, {})
 
     def test_cdn_upload_creates_destination_before_sync(self) -> None:
         """The deployment graph creates the release's static directory before rsync."""
