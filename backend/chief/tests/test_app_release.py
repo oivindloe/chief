@@ -44,7 +44,7 @@ class AppReleaseTests(OTestCase):
         self.assertEqual(loaded.severities, ['CRITICAL'])
 
         backend = loaded.images['backend']
-        self.assertEqual(backend.repository, 'chief/backend')
+        self.assertEqual(backend.repository, 'apps/chief/backend')
         self.assertEqual(backend.context, '.')
         self.assertEqual(backend.consumers, ['backend', 'celery-worker', 'celery-beat'])
         release = backend.variants['release']
@@ -54,7 +54,7 @@ class AppReleaseTests(OTestCase):
         self.assertEqual(release.verify_strategy, 'registry-digest')
 
         static = loaded.images['static']
-        self.assertEqual(static.repository, 'chief/static')
+        self.assertEqual(static.repository, 'apps/chief/static')
         self.assertEqual(static.context, '.')
         self.assertEqual(static.consumers, ['static'])
         stage = static.variants['stage']

@@ -1,7 +1,7 @@
 images:
   backend:
     context: .
-    repository: chief/backend
+    repository: apps/chief/backend
     consumers: [backend, celery-worker, celery-beat]
     variants:
       release:
@@ -10,7 +10,7 @@ images:
       strategy: git
   static:
     context: .
-    repository: chief/static
+    repository: apps/chief/static
     variants:
       stage:
         dockerfile: infra/k8s/Dockerfile.static.stage
