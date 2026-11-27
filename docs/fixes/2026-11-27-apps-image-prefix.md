@@ -31,4 +31,4 @@ Updated `images.yml` repository fields and aligned `test_app_release.py` manifes
 
 ## Links
 
-- PR:
+- PR: https://github.com/oivindloe/chief/pull/76
